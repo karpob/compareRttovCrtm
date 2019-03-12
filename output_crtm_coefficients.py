@@ -101,7 +101,46 @@ def readTauCoeffODPS(fname):
     Optran = oo
 
     return ODPS, Optran
- 
+
+def readNLTE(f,o):
+    
+    o['release'],o['version'] = struct.unpack('ii',f.read(struct.calcsize('ii')))
+    f.read(8)
+    o['n_Predictors'], o['n_Sensor_Angles'] ,o['n_Solar_Angles']  , o['n_NLTE_Channels'] , o['n_Channels'] = struct.unpack('5i', f.read( struct.calcsize('5i') ))
+    f.read(8)
+    o['Sensor_Id'] = struct.unpack('20s', f.read( struct.calcsize('20s') ) )
+    o['WMO_Satellite_Id'], o['WMO_Sensor_Id']  = struct.unpack('ii', f.read( struct.calcsize('ii'))) 
+    fmt = '{:d}i'.format(o['n_Channels'])
+    o['Sensor_Channel'] = struct.unpack(fmt, f.read( struct.calcsize(fmt) ) )
+    f.read(8)
+     
+    fmt = '{:d}d'.format(2)
+    o['Upper_Plevel'] = struct.unpack( fmt, f.read( struct.calcsize(fmt) ) )
+    o['Lower_Plevel'] = struct.unpack( fmt, f.read( struct.calcsize(fmt) ) )
+    f.read(8)
+
+    o['Min_Tm'] = struct.unpack( fmt, f.read( struct.calcsize(fmt) ) ) 
+    o['Max_Tm'] = struct.unpack( fmt, f.read( struct.calcsize(fmt) ) )
+    o['Mean_Tm'] = struct.unpack( fmt, f.read( struct.calcsize(fmt) ) ) 
+    f.read(8)
+    fmt = '{:d}i'.format(o['n_NLTE_Channels'])
+    o['NLTE_Channel'] = struct.unpack( fmt, f.read( struct.calcsize(fmt) ) ) 
+    f.read(8)
+   
+    fmt = '{:d}d'.format(o['n_Sensor_Angles'])
+    o['Secant_Sensor_Zenith'] = struct.unpack( fmt, f.read( struct.calcsize(fmt) ) ) 
+    fmt = '{:d}d'.format(o['n_Solar_Angles'])
+    o['Secant_Solar_Zenith'] = struct.unpack( fmt, f.read( struct.calcsize(fmt) ) ) 
+    f.read(8)
+    
+    fmt = '{:d}i'.format(o['n_Channels'])
+    o['C_Index'] = struct.unpack( fmt, f.read( struct.calcsize(fmt) ) ) 
+    fmt = '{:d}d'.format(o['n_Predictors']*o['n_Sensor_Angles']*o['n_Solar_Angles']*o['n_NLTE_Channels'])
+    o['C'] = struct.unpack( fmt, f.read( struct.calcsize(fmt) ) ) 
+    f.read(8)
+
+    return o
+
 def readSpcCoeff(fname):
     """
     read Spectral Coefficient information.
@@ -114,7 +153,7 @@ def readSpcCoeff(fname):
     # SpcCoeff file specific stuff 
     o['release'],o['version'] = struct.unpack('ii',f.read(struct.calcsize('ii')))
     f.read(8)
-
+    print('r,v',o['release'],o['version'])
     o['n_Channels'], = struct.unpack('i',f.read(struct.calcsize('i')))
     n_Channels = o['n_Channels']
     f.read(8)
@@ -142,7 +181,8 @@ def readSpcCoeff(fname):
     f.read(8)
      
     o['nlte_correction_present'], = struct.unpack('i',f.read(struct.calcsize('i')))
-
+    f.read(8)
+    if(o['nlte_correction_present']>0): o = readNLTE(f,o)
     spcCoeff = o 
 
     return spcCoeff
@@ -150,13 +190,17 @@ def readSpcCoeff(fname):
 pathInfo = configparser.ConfigParser()
 # Stuff to get the installed rttov path, and import pyrttov interface
 pathInfo.read('pycrtm/crtm.cfg')
-spcCoeff = readSpcCoeff(os.path.join(pathInfo['CRTM']['coeffs_dir'],'atms_npp.SpcCoeff.bin'))
+spcCoeff = readSpcCoeff(os.path.join(pathInfo['CRTM']['coeffs_dir'],'cris_npp.SpcCoeff.bin'))
+
 for k in list(spcCoeff.keys()):
     print(k,spcCoeff[k])
-a, b = readTauCoeffODPS(os.path.join(pathInfo['CRTM']['coeffs_dir'],'atms_npp.TauCoeff.bin'))
+
+"""
+a, b = readTauCoeffODPS(os.path.join(pathInfo['CRTM']['coeffs_dir'],'cris_npp.TauCoeff.bin'))
 print('ODPS')
 for k in list(a.keys()):
     print(k, a[k])
 print('OPTRAN')
 for k in list(b.keys()):
     print(k,b[k])
+"""
