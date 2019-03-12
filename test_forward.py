@@ -4,6 +4,7 @@ matplotlib.use('Agg')
 import configparser, os, sys, h5py
 import numpy as np
 from matplotlib import pyplot as plt
+
 pathInfo = configparser.ConfigParser()
 # Stuff to get the installed rttov path, and import pyrttov interface
 pathInfo.read('rttov.cfg')
@@ -16,6 +17,8 @@ import pyrttov
 import example_data as ex
 # import pycrtm f2py module
 from pycrtm import pycrtm
+from pycrtm.crtm_io import readTauCoeffODPS
+
 def interpolateProfile(x, xo, yo):
     """
     Do a log-linear interpolation.
@@ -75,50 +78,46 @@ def readProfileH5(filename,nprofiles,coefLevs):
 
 
 if __name__ == "__main__":
-    coefLev = [0.0050, 0.0131, 0.0304, 0.0644, 0.1263, 0.2324, 0.4052, 0.6749, 1.0801, 1.6691,2.5011, 3.6462, 5.1864, 7.2150, 9.8368,\
+    
+    coefLev54 = [0.0050, 0.0131, 0.0304, 0.0644, 0.1263, 0.2324, 0.4052, 0.6749, 1.0801, 1.6691,2.5011, 3.6462, 5.1864, 7.2150, 9.8368,\
                13.1672, 17.3308, 22.4601, 28.6937, 36.1735, 45.0430, 55.4433, 67.5109, 81.3744, 97.1505, 114.9420, 134.8320, 156.8850, 181.1390,\
                207.6090, 236.2780, 267.1010, 300.0000, 334.8650, 371.5530, 409.8890, 449.6680, 490.6520, 532.5770, 575.1540, 618.0710, 660.9960,\
                703.5860, 745.4840, 786.3280, 825.7550, 863.4050, 898.9280, 931.9850, 962.2590, 989.4510, 1013.2900, 1033.5400, 1050.0000]
-
+    
+    #coefLev = np.asarray(h5['boundary_pressures'])
+    #layerPressures = np.asarray(h5['layer_pressures'])
     # get installed path to coefficients from pycrtm submodule install (crtm.cfg in pycrtm directory)
     pathToThisScript = os.path.dirname(os.path.abspath(__file__))
     pathInfo = configparser.ConfigParser()
     pathInfo.read( os.path.join(pathToThisScript,'pycrtm','crtm.cfg') )
     coefficientPathCrtm = pathInfo['CRTM']['coeffs_dir']
+    # get pressures used for profile training in CRTM.
+    crtmTauCoef, _ = readTauCoeffODPS( os.path.join(coefficientPathCrtm,'cris-fsr_n20.TauCoeff.bin') ) 
+
+    coefLev = np.asarray(crtmTauCoef['level_pressure'])
+    layerPressures = np.asarray(crtmTauCoef['layer_pressure'])
+    crtmTauCoef = []
+ 
     #### Profile Loading junk from the rttov example ####
     
     # Declare an instance of Profiles
-    nlevels = 54 #len(ex.p_ex)
-    print('nlevels',nlevels)
+    nlevels = 100  
     nprofiles = 2
     myProfiles = pyrttov.Profiles(nprofiles, nlevels)
     myProfiles2 = pyrttov.Profiles(nprofiles, nlevels-1)
     h5ProfileFilename =  '/discover/nobackup/bkarpowi/rt3/rttov/rttov_test/profile-datasets-hdf/standard101lev_allgas_kgkg.H5'
-    #h5ProfileFilename =  '/discover/nobackup/bkarpowi/rt3/rttov/rttov_test/profile-datasets-hdf/standard101lev_allgas.H5'
-    myProfiles.P, myProfiles.T, myProfiles.Q, myProfiles.CO2, myProfiles.O3, myProfiles.GasUnits = readProfileH5(h5ProfileFilename, nprofiles, coefLev)
-    """
-    myProfiles2.P = myProfiles.P[:,0:nlevels-1]
-    myProfiles2.T = myProfiles.T[:,0:nlevels-1]
-    myProfiles2.Q = myProfiles.Q[:,0:nlevels-1]
-    myProfiles2.O3 = myProfiles.O3[:,0:nlevels-1]
-    myProfiles2.CO2 = myProfiles.CO2[:,0:nlevels-1]
-    myProfiles2.GasUnits = myProfiles.GasUnits
-    """
+    myProfiles.P, myProfiles.T, myProfiles.Q, myProfiles.CO2, myProfiles.O3, myProfiles.GasUnits = readProfileH5(h5ProfileFilename, nprofiles, layerPressures)
     # Associate the profiles and other data from example_data.h with myProfiles
     # Note that the simplecloud, clwscheme, icecloud and zeeman data are not mandatory and
     # are omitted here
     # 
     # satzen, satazi, sunzen, sunazi
     myProfiles.Angles = 0.0*ex.angles.transpose()
-    print('angles',myProfiles.Angles)
     myProfiles.Angles[:,0] = 0
     myProfiles.Angles[:,1] = 0
-    print('angles',myProfiles.Angles)
-    myProfiles.S2m = np.array([[myProfiles.P[0,-1],myProfiles.T[0,-1] ,myProfiles.Q[0,-1] , 0, 0., 0.],\
-                [myProfiles.P[0,-1],myProfiles.T[1,-1] ,myProfiles.Q[1,-1] , 0., 0., 0.]], dtype=np.float64)
-    
+    myProfiles.S2m = np.array([[myProfiles.P[0,-1],270.0 ,myProfiles.Q[0,-1] , 0, 0., 0.],\
+                [myProfiles.P[0,-1],270.0 ,myProfiles.Q[1,-1] , 0., 0., 0.]], dtype=np.float64)
     myProfiles.Skin = ex.skin.transpose()
-    print('skin?',myProfiles2.Skin) 
     # make SurfType to Water surface over ocean
     myProfiles.SurfType = np.ones(ex.surftype.shape).transpose()
     myProfiles.SurfGeom = ex.surfgeom.transpose()
@@ -135,7 +134,7 @@ if __name__ == "__main__":
     rttovObj.Options.StoreRad = True
     rttovObj.Options.StoreEmisTerms = True
     rttovObj.Options.VerboseWrapper = True
-    rttovObj.FileCoef = os.path.join(rttovPath, 'rtcoef_rttov12','rttov9pred101L','rtcoef_jpss_0_cris.H5')
+    rttovObj.FileCoef = os.path.join(rttovPath, 'rtcoef_rttov12','rttov9pred101L','rtcoef_jpss_0_cris-fsr.H5')
     # set Fastem version to 5 for comparison with CRTM.
     rttovObj.Options.FastemVersion = int(5)
     #load the coefficient
@@ -144,13 +143,11 @@ if __name__ == "__main__":
     #load the profiles
     rttovObj.Profiles = myProfiles
     # have rttov calculate surface emission. 
-    rttovObj.SurfEmisRefl =-1.0*np.ones((2,nprofiles,1305), dtype=np.float64)
+    rttovObj.SurfEmisRefl =-1.0*np.ones((2,nprofiles,2211), dtype=np.float64)
     
     # run it 
     rttovObj.runDirect()
     print("surf emis",rttovObj.SurfEmisRefl)
-    print("transmission",rttovObj.TauLevels)
-    print("MHS brightness temperatures from RTTOV.")
     print(rttovObj.Bt)
 
     print("Now on to CRTM.")
@@ -166,42 +163,37 @@ if __name__ == "__main__":
         azimuthAngle = 0.0#np.asarray(myProfiles.Angles[iprof][1])
         scanAngle = 0.0 #np.asarray(zenithAngle)
         solarAngle =np.asarray( myProfiles.Angles[iprof][2])
-        print("stupid angles", iprof)
         print( zenithAngle, azimuthAngle, scanAngle, solarAngle)
-        nChan = int(1305)
-        pressureLevels = np.asarray(myProfiles.P[iprof,:])
-        pressureLayers = np.asarray(crtmLevelsToLayers(pressureLevels))
-        temperatureLayers = interpolateProfile(pressureLayers, pressureLevels, myProfiles.T[iprof,:])
-        #h5ProfileFilename =  '/discover/nobackup/bkarpowi/rt3/rttov/rttov_test/profile-datasets-hdf/standard101lev_allgas_kgkg.H5'
+        nChan = int(2211)
+        pressureLevels = np.asarray(coefLev) #np.asarray(myProfiles.P[iprof,0::])
+        pressureLayers = layerPressures
+        temperatureLayers = myProfiles.T[iprof,:]#interpolateProfile(pressureLayers, pressureLevels, myProfiles.T[iprof,:])
         #_, _, myProfiles.Q, _, _, _ = readProfileH5(h5ProfileFilename, nprofiles, coefLev)
 
-        humidityLayers = 1000.0*interpolateProfile(pressureLayers, pressureLevels, myProfiles.Q[iprof,:])
-        ozoneConcLayers = 0.0*interpolateProfile(pressureLayers, pressureLevels, myProfiles.O3[iprof,:]) 
+        humidityLayers = 1000.0*myProfiles.Q[iprof,:]#interpolateProfile(pressureLayers, pressureLevels, myProfiles.Q[iprof,:])
+        ozoneConcLayers = 0.0*myProfiles.O3[iprof,:]#interpolateProfile(pressureLayers, pressureLevels, myProfiles.O3[iprof,:]) 
         surfaceType = 0 
-        surfaceTemperature = float(270)
+        surfaceTemperature = 270.0
         windSpeed10m = 0.0#np.sqrt(4.**2 + 2.**2)
         windDirection10m = 0.0#np.arctan2(4./windSpeed10m,2/windSpeed10m)*(180.0/np.pi)
-        print('heh?', pressureLevels.shape, pressureLayers.shape)
-        Tb, Transmission = pycrtm.pycrtm.wrap_forward( coefficientPathCrtm, 'cris_npp',\
+        Tb, Transmission = pycrtm.pycrtm.wrap_forward( coefficientPathCrtm, 'cris-fsr_n20',\
                         zenithAngle, scanAngle, azimuthAngle, solarAngle, nChan,\
                         pressureLevels, pressureLayers, temperatureLayers, humidityLayers, ozoneConcLayers,\
                         surfaceType, surfaceTemperature, windSpeed10m, windDirection10m )
         crtmTb.append(Tb)
 
-    tRttov = np.log(rttovObj.TauLevels[iprof, 5, 0::])
+    tRttov = np.log(rttovObj.TauLevels[iprof, 999, 0::])
     dTauRttov =np.flipud(np.diff(np.flipud(tRttov)))
     ttRttov = np.exp(-1*np.cumsum(dTauRttov))
-    num = rttovObj.TauLevels[iprof, 5, 1::] - rttovObj.TauLevels[iprof, 5, 0:nlevels-1] 
+    num = rttovObj.TauLevels[iprof, 999, 1::] - rttovObj.TauLevels[iprof, 999, 0:nlevels-1] 
     den = np.log(myProfiles.P[iprof, 0:nlevels-1]) - np.log(myProfiles.P[iprof, 1:nlevels]) 
-    print('wf rttov', rttovObj.TauLevels[iprof,5,1::])           
-    print('wf crtm',(np.exp(-1*Transmission[5,1::])) )
-    tCrtm = np.exp(-1*np.cumsum(Transmission[5,0::]))
+    tCrtm = np.exp(-1*np.cumsum(Transmission[999,0::]))
     numCrtm = np.diff(tCrtm[0::])
     print(ttRttov.shape)
     numRttov = ttRttov[1::]-ttRttov[0:ttRttov.shape[0]-1]
-    plt.plot(numCrtm/den[0:len(numCrtm)],'rx')
+    plt.plot(numCrtm[1::]/den[1:len(numCrtm)],'rx')
     plt.plot(numRttov/den[0:len(numRttov)],'kx')
-    plt.plot(num/den,'bx')
+    plt.plot(num[1::]/den[1::],'bx')
     print('n rttov, ncrtm',numRttov.shape,numCrtm.shape)
     plt.savefig('whir.png')
     z = np.asarray(crtmTb)-rttovObj.Bt
