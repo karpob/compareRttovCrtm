@@ -16,8 +16,8 @@ import pyrttov
 # pull in example from basic rttov example
 import example_data as ex
 # import pycrtm f2py module
-from pycrtm import pycrtm
-from pycrtm.crtm_io import readTauCoeffODPS
+from lib.pycrtm import pycrtm
+from lib.pycrtm.crtm_io import readTauCoeffODPS
 
 def interpolateProfile(x, xo, yo):
     """
@@ -89,7 +89,7 @@ if __name__ == "__main__":
     # get installed path to coefficients from pycrtm submodule install (crtm.cfg in pycrtm directory)
     pathToThisScript = os.path.dirname(os.path.abspath(__file__))
     pathInfo = configparser.ConfigParser()
-    pathInfo.read( os.path.join(pathToThisScript,'pycrtm','crtm.cfg') )
+    pathInfo.read( os.path.join(pathToThisScript,'lib','pycrtm','crtm.cfg') )
     coefficientPathCrtm = pathInfo['CRTM']['coeffs_dir']
     # get pressures used for profile training in CRTM.
     crtmTauCoef, _ = readTauCoeffODPS( os.path.join(coefficientPathCrtm,'cris-fsr_n20.TauCoeff.bin') ) 

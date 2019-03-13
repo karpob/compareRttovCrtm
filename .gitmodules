@@ -1,3 +1,3 @@
 [submodule "pycrtm"]
-	path = pycrtm
+	path = lib/pycrtm
 	url = https://github.com/karpob/pycrtm.git
