@@ -1,0 +1,117 @@
+# ------------------------------------------------------------------------
+# Use this file to include external libraries when compiling RTTOV.
+# It is recommended to compile RTTOV with the HDF5 library.
+# Any other external libraries required may also be specified here.
+# ------------------------------------------------------------------------
+
+
+# To compile RTTOV against the HDF5 library you must:
+# - specify the path to your own copy of the library in the HDF5_PREFIX
+#   variable below
+# - uncomment one FFLAGS_HDF5 line and one LDFLAGS_HDF5 line which are
+#   appropriate for your installed library.
+
+# After editing this file run the build/rttov_compile.sh script from within
+# the RTTOV src/ directory to compile RTTOV.
+
+
+# ------------------------------------------------------------------------
+# HDF5 library: for HDF5 coefficient file I/O, emissivity/BRDF atlases,
+#               and RTTOV GUI.
+#
+# NB It is essential to supply the _RTTOV_HDF macro to compile with HDF:
+#    this is done within the FFLAGS_HDF5 specified below. Also, if
+#    compiling manually, from within the src/ directory you must first run:
+# $ ../build/Makefile.PL RTTOV_HDF=1
+# ------------------------------------------------------------------------
+
+# HDF5_PREFIX  = path-to-hdf-install
+# HDF5_PREFIX  = /software/depot/hdf-4.2.9-pgi
+# HDF5_PREFIX  = /software/depot/hdf5-1.8.17-intel
+
+# --- Uncomment one FFLAGS_HDF5 line:
+
+# For most compilers:
+FFLAGS_HDF5  = -D_RTTOV_HDF $(FFLAG_MOD)$(HDF5_PREFIX)/include
+
+# For xlf on AIX:
+# FFLAGS_HDF5  = -WF,-D_RTTOV_HDF $(FFLAG_MOD)$(HDF5_PREFIX)/include
+
+# --- Uncomment one LDFLAGS_HDF5 line:
+
+# In most cases:
+#LDFLAGS_HDF5 = -L$(HDF5_PREFIX)/lib -lhdf5hl_fortran -lhdf5_hl -lhdf5_fortran -lhdf5
+
+# But you may find that you must also specify libz:
+ LDFLAGS_HDF5 = -L$(HDF5_PREFIX)/lib -lhdf5hl_fortran -lhdf5_hl -lhdf5_fortran -lhdf5 -lz
+
+
+
+# ------------------------------------------------------------------------
+# HT-FRTC radiative transfer code
+# NB It is essential to supply the _RTTOV_HTFRTC macro to compile with HT-FRTC:
+#    this is done within the FFLAGS_HTFRTC specified below.
+# ------------------------------------------------------------------------
+
+HTFRTC_PREFIX  = path-to-htfrtc-install
+HTFRTC_NETCDF_PREFIX = path-to-netcdf-install
+
+# --- Uncomment one FFLAGS_HTFRTC line:
+
+# For most compilers:
+# FFLAGS_HTFRTC = -D_RTTOV_HTFRTC $(FFLAG_MOD)$(HTFRTC_PREFIX)/bin
+
+# For xlf on AIX:
+# FFLAGS_HTFRTC = -WF,-D_RTTOV_HTFRTC $(FFLAG_MOD)$(HTFRTC_PREFIX)/bin
+
+# --- Uncomment the LDFLAGS_HTFRTC line:
+
+# LDFLAGS_HTFRTC = -L$(HTFRTC_PREFIX)/bin -lhtfrtc_rttov -L$(HTFRTC_NETCDF_PREFIX)/lib -lnetcdff -lnetcdf
+
+
+
+# ------------------------------------------------------------------------
+# Usually there is no need to edit anything below this line
+# ------------------------------------------------------------------------
+
+# ------------------------------------------------------------------------
+# Optional: specify other libraries here e.g. DrHook
+# ------------------------------------------------------------------------
+DRHOOK_PREFIX  = path-to-drhook-install
+# FFLAGS_DRHOOK  = -I$(DRHOOK_PREFIX)
+# LDFLAGS_DRHOOK = -L$(DRHOOK_PREFIX) -ldrhook -lmpi_serial
+
+
+# ------------------------------------------------------------------------
+# NetCDF library - intended for developers only
+# ------------------------------------------------------------------------
+
+# NETCDF_PREFIX  = path-to-netcdf-install
+
+# For xlf on AIX:
+# FFLAGS_NETCDF  = -WF,-D_RTTOV_NETCDF -I$(NETCDF_PREFIX)/include
+
+# For most other compilers:
+# FFLAGS_NETCDF  = -D_RTTOV_NETCDF -I$(NETCDF_PREFIX)/include
+
+
+# For NetCDF v3:
+# LDFLAGS_NETCDF = -L$(NETCDF_PREFIX)/lib -lnetcdf
+
+# For NetCDF v4.1:
+# LDFLAGS_NETCDF = -L$(NETCDF_PREFIX)/lib -lnetcdff -lnetcdf
+
+# For NetCDF v4.2 and later:
+# LDFLAGS_NETCDF = -L$(NETCDF_PREFIX)/lib -lnetcdff
+
+# NB Since NetCDF v4 depends on the HDF5 library you also need to link
+#    against the HDF5 library (as above).
+
+
+# ------------------------------------------------------------------------
+# Include all macros on the following lines:
+# (Does not need editing unless you add more libraries)
+# ------------------------------------------------------------------------
+
+FFLAGS_EXTERN  = $(FFLAGS_NETCDF)  $(FFLAGS_HDF5)  $(FFLAGS_DRHOOK)  $(FFLAGS_HTFRTC)
+LDFLAGS_EXTERN = $(LDFLAGS_NETCDF) $(LDFLAGS_HDF5) $(LDFLAGS_DRHOOK) $(LDFLAGS_HTFRTC)
