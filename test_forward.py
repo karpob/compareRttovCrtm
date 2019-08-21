@@ -25,47 +25,51 @@ def interpolateProfile(x, xo, yo):
     logYo = np.log(yo)
     return np.exp(np.interp(logX, logXo, logYo))
  
-def crtmLevelsToLayers( pLevels ):
-    num = pLevels[1::] - pLevels[0:pLevels.shape[0]-1]
-    den = np.log(pLevels[1::]/pLevels[0:pLevels.shape[0]-1])
-    return num/den
+def interpProfiles( Po, Pi, Ti, Qi, CO2i, O3i):
+    """
+    Interpolate log-linear variables(Pi,Ti,Qi,CO2i,O3i) onto new pressure grid (Po)
+    """
+    nlevs = Po.shape[0]
+    nprofiles = Pi.shape[0]
+    To = np.asarray([nprofiles,nlevs])
+    Qo = np.asarray([nprofiles,nlevs])
+    CO2o = np.asarray([nprofiles,nlevs])
+    O3o = np.asarray([nprofiles,nlevs])
+    Poo = np.asarray([nprofiles,nlevs])
+    for i in list(range(nprofiles)):
+        Poo[i,:]  = Po
+        O3o[i,:]  = interpolateProfile( Po, Pi[i,:], O3i[i,:]  ) 
+        Co2o[i,:] = interpolateProfile( Po, Pi[i,:], CO2i[i,:] ) 
+        Qo[i,:]   = interpolateProfile( Po, Pi[i,:], Qi[i,:]   ) 
+        To[i,:]   = interpolateProfile( Po, Pi[i,:], Ti[i,:]   ) 
+    return Poo, To, Qo, CO2o, O3o
 
-def readProfileH5(filename,nprofiles,coefLevs):
+def readProfileH5( filename ):
+    """
+    Read an RTTOV-style atmosphere profile.
+    In: filename to hdf5
+    Out: Pressure, Temperature, CO2, O3 [nprofiles,nlevels]
+    Out: Gas_Units (mass, ppmv dry, ppmv moist)
+    """
     h5 = h5py.File( filename )
-    groups = []
-    #nlevs = np.asarray(coefLevs).shape[0]
-    nlevs = 101
-    for i in range(1,nprofiles+1):
-        groups.append("{:04d}".format(i))
-    P = np.zeros([nprofiles,101])
-    T = np.zeros([nprofiles,101])
-    Q = np.zeros([nprofiles,101])
-    CO2 = np.zeros([nprofiles,101])
-    O3 = np.zeros([nprofiles,101])
+    groups = list(h5['PROFILES'].keys())
+    nprofiles = len(groups)
+    nlevs, = np.asarray( h5['PROFILES'][groups[0]]['P'] ).shape 
+    P = np.zeros([nprofiles,nlevs])
+    T = np.zeros([nprofiles,nlevs])
+    Q = np.zeros([nprofiles,nlevs])
+    CO2 = np.zeros([nprofiles,nlevs])
+    O3 = np.zeros([nprofiles,nlevs])
 
-    Po = np.zeros([nprofiles,nlevs])
-    To = np.zeros([nprofiles,nlevs])
-    Qo = np.zeros([nprofiles,nlevs])
-    CO2o = np.zeros([nprofiles,nlevs])
-    O3o = np.zeros([nprofiles,nlevs])
-    groups = ['0003','0003']
     for i,g in enumerate(groups):
-        print ('ggg', i, g)
         P[i,:] = np.asarray(h5['PROFILES'][g]['P'])
         Q[i,:] = np.asarray(h5['PROFILES'][g]['Q'])
-        Po[i,:] = P[i,:] #coefLevs
         T[i,:] = np.asarray(h5['PROFILES'][g]['T'])
-        To[i,:] = T[i,:]#interpolateProfile(Po[i,:], P[i,:], T[i,:])
-        Qo[i,:] = Q[i,:]#interpolateProfile(Po[i,:], P[i,:], Q[i,:])
         CO2[i,:] = np.asarray(h5['PROFILES'][g]['CO2'])
-        CO2o[i,:] = CO2[i,:] #interpolateProfile(Po[i,:], P[i,:], CO2[i,:])
         O3[i,:] = np.asarray(h5['PROFILES'][g]['O3'])
-        O3o[i,:] = O3[i,:] #interpolateProfile(Po[i,:], P[i,:], O3[i,:])
         GasUnits = int(np.asarray(h5['PROFILES'][g]['GAS_UNITS']))
     
-    return Po, To, Qo, CO2o, O3o, GasUnits 
-
-
+    return P, T, Q, CO2, O3, GasUnits 
 
 if __name__ == "__main__":
     
@@ -88,11 +92,11 @@ if __name__ == "__main__":
     ##########################
     # Declare an instance of Profiles
     nlevels = 101  
-    nprofiles = 2
+    nprofiles = 6
     myProfiles = pyrttov.Profiles(nprofiles, nlevels)
     myProfiles2 = pyrttov.Profiles(nprofiles, nlevels-3)
     h5ProfileFilename =  '/Users/bkarpowi/github/compareRttovCrtm/rttovDir/rttov/rttov_test/profile-datasets-hdf/standard101lev_allgas_kgkg.H5'
-    myProfiles.P, myProfiles.T, myProfiles.Q, myProfiles.CO2, myProfiles.O3, myProfiles.GasUnits = readProfileH5(h5ProfileFilename, nprofiles, layerPressuresCrtm)
+    myProfiles.P, myProfiles.T, myProfiles.Q, myProfiles.CO2, myProfiles.O3, myProfiles.GasUnits = readProfileH5(h5ProfileFilename)
     myProfiles2.P = myProfiles.P[:,0:98]
     myProfiles2.Q = myProfiles.Q[:,0:98]
     myProfiles2.T = myProfiles.T[:,0:98]
@@ -161,7 +165,7 @@ if __name__ == "__main__":
     rttovObj.Options.OzoneData = True
     rttovObj.Options.IrSeaEmisModel =2
     rttovObj.Options.FastemVersion = int(6)
-    rttovObj.Options.Nthreads = 2
+    rttovObj.Options.Nthreads = 6
     rttovObj.FileCoef = os.path.join(rttovPath, 'rtcoef_rttov12','rttov8pred101L','rtcoef_metop_2_iasi.H5')
 
     #load the coefficient
@@ -185,13 +189,13 @@ if __name__ == "__main__":
     ##############################
     # Begin CRTM Profile setting
     ##############################
-    nprofiles = 2
+    nprofiles = 6
     myProfiles = pyrttov.Profiles(nprofiles, 101)
     h5ProfileFilename =  '/Users/bkarpowi/github/compareRttovCrtm/rttovDir/rttov/rttov_test/profile-datasets-hdf/standard101lev_allgas_kgkg.H5'
-    myProfiles.P, myProfiles.T, myProfiles.Q, myProfiles.CO2, myProfiles.O3, myProfiles.GasUnits = readProfileH5(h5ProfileFilename, nprofiles, layerPressuresCrtm)
+    myProfiles.P, myProfiles.T, myProfiles.Q, myProfiles.CO2, myProfiles.O3, myProfiles.GasUnits = readProfileH5(h5ProfileFilename)
     h5ProfileFilename =  '/Users/bkarpowi/github/compareRttovCrtm/rttovDir/rttov/rttov_test/profile-datasets-hdf/standard101lev_allgas.H5'
-    _, _, _, CO2_1, O3_1, units_1 = readProfileH5(h5ProfileFilename, nprofiles, layerPressuresCrtm)
-    profilesCRTM = profilesCreate( 2, 98 )
+    _, _, _, CO2_1, O3_1, units_1 = readProfileH5(h5ProfileFilename)
+    profilesCRTM = profilesCreate( 6, 98 )
     profilesCRTM.Angles[:,:] = 0.0
     profilesCRTM.Angles[:,2] = 100.0  # Solar Zenith Angle 100 degrees zenith below horizon.
 
@@ -232,7 +236,7 @@ if __name__ == "__main__":
     crtmOb.profiles = profilesCRTM
     crtmOb.coefficientPath = coefficientPathCrtm 
     crtmOb.sensor_id = 'iasi_metop-b' 
-    crtmOb.nThreads = 2
+    crtmOb.nThreads = 6
 
     crtmOb.loadInst()
     crtmOb.runDirect()
@@ -252,33 +256,44 @@ if __name__ == "__main__":
     ##############################
     # Start Plots
     ##############################
-    plt.figure()
-    plt.plot(wv, crtmOb.Bt[0,idx],'b',label='CRTM')
-    plt.plot(wv, rttovObj.Bt[0,idx],'r',label='RTTOV')
-    plt.xlabel('Wavenumber [cm$^{-1}$]')
-    plt.ylabel('Brightness Temperature [K]')
-    plt.legend()
-    plt.savefig('iasi_crtm_rttov.png')
+    profileNames = ['Tropical','Mid-Lat Summer', 'Mid-Lat Winter', 'Sub-Arctic Summer', 'Sub-Arctic Winter', 'US-Standard Atmosphere' ]
+    for i,n in enumerate(profileNames): 
+        key = n.replace(" ","_")+'_'
+        plt.figure()
+        plt.plot(wv, crtmOb.Bt[i,idx],'b',label='CRTM')
+        plt.plot(wv, rttovObj.Bt[i,idx],'r',label='RTTOV')
+        plt.xlabel('Wavenumber [cm$^{-1}$]')
+        plt.ylabel('Brightness Temperature [K]')
+        plt.title('IASI Brightness Temperature Profile '+n)
+        plt.legend()
+        plt.savefig(key+'iasi_crtm_rttov.png')
+        plt.close()
 
-    plt.figure()
-    plt.plot(wv, crtmOb.Bt[0,idx]-rttovObj.Bt[0,idx],'k')
-    plt.xlabel('Wavenumber [cm$^{-1}$]')
-    plt.ylabel('CRTM - RTTOV Brightness Temperature [K]')
-    plt.savefig('iasi_crtm_rttov_diff.png')
+        plt.figure()
+        plt.plot(wv, crtmOb.Bt[i,idx]-rttovObj.Bt[i,idx],'k')
+        plt.title('IASI Brightness Temperature Difference Profile '+n)
+        plt.xlabel('Wavenumber [cm$^{-1}$]')
+        plt.ylabel('CRTM - RTTOV Brightness Temperature [K]')
+        plt.savefig(key+'iasi_crtm_rttov_diff.png')
+        plt.close()
 
-    plt.figure()
-    plt.plot(wv, crtmOb.surfEmisRefl[0,idx],'b', label='CRTM')
-    plt.plot(wv, rttovObj.SurfEmisRefl[0,0,idx],'r', label='RTTOV')
-    plt.legend()
-    plt.xlabel('Wavenumber [cm$^{-1}$]')
-    plt.ylabel('Emissivity')
-    plt.savefig('iasi_emissivity_crtm_rttov.png')
+        plt.figure()
+        plt.plot(wv, crtmOb.surfEmisRefl[i,idx],'b', label='CRTM')
+        plt.plot(wv, rttovObj.SurfEmisRefl[0,i,idx],'r', label='RTTOV')
+        plt.legend()
+        plt.title('IASI Emissivity Profile '+n)
+        plt.xlabel('Wavenumber [cm$^{-1}$]')
+        plt.ylabel('Emissivity')
+        plt.savefig(key+'iasi_emissivity_crtm_rttov.png')
+        plt.close()
 
-    plt.figure()
-    plt.plot(wv, crtmOb.surfEmisRefl[0,idx]- rttovObj.SurfEmisRefl[0,0,idx],'k')
-    plt.xlabel('Wavenumber [cm$^{-1}$]')
-    plt.ylabel('CRTM - RTTOV Emissivity')
-    plt.savefig('iasi_emissivity_crtm_rttov_diff.png')
+        plt.figure()
+        plt.plot(wv, crtmOb.surfEmisRefl[i,idx]- rttovObj.SurfEmisRefl[0,i,idx],'k')
+        plt.title('IASI Emissivity Difference Profile '+n)
+        plt.xlabel('Wavenumber [cm$^{-1}$]')
+        plt.ylabel('CRTM - RTTOV Emissivity')
+        plt.savefig(key+'iasi_emissivity_crtm_rttov_diff.png')
+        plt.close()
     ##############################
     # End Plots
     ##############################
