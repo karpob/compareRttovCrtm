@@ -169,12 +169,14 @@ if __name__ == "__main__":
     coefLevCrtm = np.asarray(crtmTauCoef['level_pressure'])
     layerPressuresCrtm = np.asarray(crtmTauCoef['layer_pressure'])
    
+    h5_mass =  os.path.join(rttovPath,'rttov_test','profile-datasets-hdf','standard101lev_allgas_kgkg.H5')
+    h5_ppmv =  os.path.join(rttovPath,'rttov_test','profile-datasets-hdf','standard101lev_allgas.H5')
+
     ##########################
     # Start Profile Setting
     ##########################
     
-    h5ProfileFilename =  '/Users/bkarpowi/github/compareRttovCrtm/rttovDir/rttov/rttov_test/profile-datasets-hdf/standard101lev_allgas_kgkg.H5'
-    myProfiles = setRttovProfiles( h5ProfileFilename )
+    myProfiles = setRttovProfiles( h5_mass )
 
     ##########################
     # End profile setting
@@ -221,8 +223,6 @@ if __name__ == "__main__":
     # Begin CRTM Profile setting
     ##############################
 
-    h5_mass =  '/Users/bkarpowi/github/compareRttovCrtm/rttovDir/rttov/rttov_test/profile-datasets-hdf/standard101lev_allgas_kgkg.H5'
-    h5_ppmv =  '/Users/bkarpowi/github/compareRttovCrtm/rttovDir/rttov/rttov_test/profile-datasets-hdf/standard101lev_allgas.H5'
     profilesCRTM  = setProfilesCRTM(h5_mass, h5_ppmv)
 
     ##############################
