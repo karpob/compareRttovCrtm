@@ -31,15 +31,15 @@ def interpProfiles( Po, Pi, Ti, Qi, CO2i, O3i):
     """
     nlevs = Po.shape[0]
     nprofiles = Pi.shape[0]
-    To = np.asarray([nprofiles,nlevs])
-    Qo = np.asarray([nprofiles,nlevs])
-    CO2o = np.asarray([nprofiles,nlevs])
-    O3o = np.asarray([nprofiles,nlevs])
-    Poo = np.asarray([nprofiles,nlevs])
+    To = np.zeros([nprofiles,nlevs])
+    Qo = np.zeros([nprofiles,nlevs])
+    CO2o = np.zeros([nprofiles,nlevs])
+    O3o = np.zeros([nprofiles,nlevs])
+    Poo = np.zeros([nprofiles,nlevs])
     for i in list(range(nprofiles)):
-        Poo[i,:]  = Po
+        Poo[i,:]  = np.asarray(Po)[:]
         O3o[i,:]  = interpolateProfile( Po, Pi[i,:], O3i[i,:]  ) 
-        Co2o[i,:] = interpolateProfile( Po, Pi[i,:], CO2i[i,:] ) 
+        CO2o[i,:] = interpolateProfile( Po, Pi[i,:], CO2i[i,:] ) 
         Qo[i,:]   = interpolateProfile( Po, Pi[i,:], Qi[i,:]   ) 
         To[i,:]   = interpolateProfile( Po, Pi[i,:], Ti[i,:]   ) 
     return Poo, To, Qo, CO2o, O3o
@@ -80,13 +80,7 @@ if __name__ == "__main__":
     pathInfo.read( os.path.join(pathToThisScript,'lib','pycrtm','crtm.cfg') )
     coefficientPathCrtm = pathInfo['CRTM']['coeffs_dir']
     
-    # Trying to make the interpolation here instead of inside CRTM, pull pressure levels out of coefficient
-    # get pressures used for profile training in CRTM.
-    crtmTauCoef, _ = readTauCoeffODPS( os.path.join(coefficientPathCrtm,'iasi_metop-b.TauCoeff.bin') ) 
-    coefLevCrtm = np.asarray(crtmTauCoef['level_pressure'])
-    layerPressuresCrtm = np.asarray(crtmTauCoef['layer_pressure'])
-    crtmTauCoef = [] # clear out some ram. by getting rid of the dictonary and set it to empty list
-    
+   
     ##########################
     # Start Profile Setting
     ##########################
@@ -94,17 +88,8 @@ if __name__ == "__main__":
     nlevels = 101  
     nprofiles = 6
     myProfiles = pyrttov.Profiles(nprofiles, nlevels)
-    myProfiles2 = pyrttov.Profiles(nprofiles, nlevels-3)
     h5ProfileFilename =  '/Users/bkarpowi/github/compareRttovCrtm/rttovDir/rttov/rttov_test/profile-datasets-hdf/standard101lev_allgas_kgkg.H5'
     myProfiles.P, myProfiles.T, myProfiles.Q, myProfiles.CO2, myProfiles.O3, myProfiles.GasUnits = readProfileH5(h5ProfileFilename)
-    myProfiles2.P = myProfiles.P[:,0:98]
-    myProfiles2.Q = myProfiles.Q[:,0:98]
-    myProfiles2.T = myProfiles.T[:,0:98]
-    myProfiles2.CO2 = myProfiles.CO2[:,0:98]
-    myProfiles2.O3 =  myProfiles.O3[:,0:98]
-    myProfiles2.GasUnits =  myProfiles.GasUnits
-    myProfiles = pyrttov.Profiles(nprofiles, nlevels-3)
-    myProfiles = myProfiles2
 
     # View/Solar angles
     # satzen, satazi, sunzen, sunazi
@@ -191,11 +176,19 @@ if __name__ == "__main__":
     ##############################
     nprofiles = 6
     myProfiles = pyrttov.Profiles(nprofiles, 101)
+    profilesCRTM = profilesCreate( 6, 100 )
     h5ProfileFilename =  '/Users/bkarpowi/github/compareRttovCrtm/rttovDir/rttov/rttov_test/profile-datasets-hdf/standard101lev_allgas_kgkg.H5'
     myProfiles.P, myProfiles.T, myProfiles.Q, myProfiles.CO2, myProfiles.O3, myProfiles.GasUnits = readProfileH5(h5ProfileFilename)
     h5ProfileFilename =  '/Users/bkarpowi/github/compareRttovCrtm/rttovDir/rttov/rttov_test/profile-datasets-hdf/standard101lev_allgas.H5'
     _, _, _, CO2_1, O3_1, units_1 = readProfileH5(h5ProfileFilename)
-    profilesCRTM = profilesCreate( 6, 98 )
+    # Trying to make the interpolation here instead of inside CRTM, pull pressure levels out of coefficient
+    # get pressures used for profile training in CRTM.
+    crtmTauCoef, _ = readTauCoeffODPS( os.path.join(coefficientPathCrtm,'iasi_metop-b.TauCoeff.bin') )
+    coefLevCrtm = np.asarray(crtmTauCoef['level_pressure'])
+    layerPressuresCrtm = np.asarray(crtmTauCoef['layer_pressure'])
+    print(layerPressuresCrtm.shape)
+    crtmTauCoef = [] # clear out some ram. by getting rid of the dictonary and set it to empty list
+    profilesCRTM.P[:,:], profilesCRTM.T[:,:], profilesCRTM.Q[:,:], profilesCRTM.CO2[:,:], profilesCRTM.O3[:,:] =  interpProfiles( layerPressuresCrtm, myProfiles.P, myProfiles.T, 1000.0*myProfiles.Q, CO2_1, O3_1)
     profilesCRTM.Angles[:,:] = 0.0
     profilesCRTM.Angles[:,2] = 100.0  # Solar Zenith Angle 100 degrees zenith below horizon.
 
@@ -203,12 +196,7 @@ if __name__ == "__main__":
     profilesCRTM.DateTimes[:,1] = 8
     profilesCRTM.DateTimes[:,2] = 1
 
-    profilesCRTM.Pi[:,:] = myProfiles.P[:,0:99]
-    profilesCRTM.P[:,:] = myProfiles.P[:,0:98]
-    profilesCRTM.T[:,:] = myProfiles.T[:,0:98]
-    profilesCRTM.Q[:,:] = 1000.0*myProfiles.Q[:,0:98]
-    profilesCRTM.O3[:,:] = O3_1[:,0:98]
-    profilesCRTM.CO2[:,:] = CO2_1[:,0:98]
+    profilesCRTM.Pi[:,:] = coefLevCrtm
 
     # Turn off Aerosols and Clouds
     profilesCRTM.aerosolType[:] = -1
