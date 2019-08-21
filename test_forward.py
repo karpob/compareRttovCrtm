@@ -75,7 +75,7 @@ def setRttovProfiles( h5ProfileFileName):
     nlevels = 101  
     nprofiles = 6
     myProfiles = pyrttov.Profiles(nprofiles, nlevels)
-    myProfiles.P, myProfiles.T, myProfiles.Q, myProfiles.CO2, myProfiles.O3, myProfiles.GasUnits = readProfileH5(h5ProfileFilename)
+    myProfiles.P, myProfiles.T, myProfiles.Q, myProfiles.CO2, myProfiles.O3, myProfiles.GasUnits = readProfileH5(h5ProfileFileName)
     myProfiles2 = pyrttov.Profiles(nprofiles,nlevels-1)
     myProfiles2.P, myProfiles2.T, myProfiles2.Q, myProfiles2.CO2, myProfiles2.O3 =  interpProfiles( layerPressuresCrtm, myProfiles.P, myProfiles.T, myProfiles.Q, myProfiles.CO2, myProfiles.O3)
     myProfiles2.GasUnits = myProfiles.GasUnits
