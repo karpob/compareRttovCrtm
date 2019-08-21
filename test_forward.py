@@ -71,25 +71,16 @@ def readProfileH5( filename ):
     
     return P, T, Q, CO2, O3, GasUnits 
 
-if __name__ == "__main__":
-    
-    # get installed path to coefficients from pycrtm submodule install (crtm.cfg in pycrtm directory)
-    # load stuff we need for CRTM coefficients
-    pathToThisScript = os.path.dirname(os.path.abspath(__file__))
-    pathInfo = configparser.ConfigParser()
-    pathInfo.read( os.path.join(pathToThisScript,'lib','pycrtm','crtm.cfg') )
-    coefficientPathCrtm = pathInfo['CRTM']['coeffs_dir']
-    
-   
-    ##########################
-    # Start Profile Setting
-    ##########################
-    # Declare an instance of Profiles
+def setRttovProfiles( h5ProfileFileName):
     nlevels = 101  
     nprofiles = 6
     myProfiles = pyrttov.Profiles(nprofiles, nlevels)
-    h5ProfileFilename =  '/Users/bkarpowi/github/compareRttovCrtm/rttovDir/rttov/rttov_test/profile-datasets-hdf/standard101lev_allgas_kgkg.H5'
     myProfiles.P, myProfiles.T, myProfiles.Q, myProfiles.CO2, myProfiles.O3, myProfiles.GasUnits = readProfileH5(h5ProfileFilename)
+    myProfiles2 = pyrttov.Profiles(nprofiles,nlevels-1)
+    myProfiles2.P, myProfiles2.T, myProfiles2.Q, myProfiles2.CO2, myProfiles2.O3 =  interpProfiles( layerPressuresCrtm, myProfiles.P, myProfiles.T, myProfiles.Q, myProfiles.CO2, myProfiles.O3)
+    myProfiles2.GasUnits = myProfiles.GasUnits
+    myProfiles = pyrttov.Profiles(nprofiles,nlevels-1)
+    myProfiles = myProfiles2
 
     # View/Solar angles
     # satzen, satazi, sunzen, sunazi
@@ -129,6 +120,61 @@ if __name__ == "__main__":
     for i in list(range(nprofiles)):
         datetimes.append( [2015 ,   8,    1,    0,    0,    0]) 
     myProfiles.DateTimes = np.asarray(datetimes)
+    return myProfiles
+def setProfilesCRTM(h5_mass, h5_ppmv):
+
+    nprofiles = 6
+    myProfiles = pyrttov.Profiles(nprofiles, 101)
+    profilesCRTM = profilesCreate( 6, 100 )
+    myProfiles.P, myProfiles.T, myProfiles.Q, myProfiles.CO2, myProfiles.O3, myProfiles.GasUnits = readProfileH5( h5_mass )
+    _, _, _, CO2_1, O3_1, units_1 = readProfileH5( h5_ppmv )
+    crtmTauCoef = [] # clear out some ram. by getting rid of the dictonary and set it to empty list
+    profilesCRTM.P[:,:], profilesCRTM.T[:,:], profilesCRTM.Q[:,:], profilesCRTM.CO2[:,:], profilesCRTM.O3[:,:] =  interpProfiles( layerPressuresCrtm, myProfiles.P, myProfiles.T, 1000.0*myProfiles.Q, CO2_1, O3_1)
+    profilesCRTM.Angles[:,:] = 0.0
+    profilesCRTM.Angles[:,2] = 100.0  # Solar Zenith Angle 100 degrees zenith below horizon.
+
+    profilesCRTM.DateTimes[:,0] = 2015
+    profilesCRTM.DateTimes[:,1] = 8
+    profilesCRTM.DateTimes[:,2] = 1
+
+    profilesCRTM.Pi[:,:] = coefLevCrtm
+
+    # Turn off Aerosols and Clouds
+    profilesCRTM.aerosolType[:] = -1
+    profilesCRTM.cloudType[:] = -1
+
+    profilesCRTM.surfaceFractions[:,:] = 0.0
+    profilesCRTM.surfaceFractions[:,1] = 1.0 # all water!
+    profilesCRTM.surfaceTemperatures[:,:] = 270 
+    profilesCRTM.S2m[:,1] = 35.0 # just use salinity out of S2m for the moment.
+    profilesCRTM.windSpeed10m[:] = 0.0
+    profilesCRTM.windDirection10m[:] = 0.0 
+    profilesCRTM.n_absorbers[:] = 2 
+
+    # land, soil, veg, water, snow, ice
+    profilesCRTM.surfaceTypes[:,3] = 1 
+
+    return profilesCRTM
+if __name__ == "__main__":
+    
+    # get installed path to coefficients from pycrtm submodule install (crtm.cfg in pycrtm directory)
+    # load stuff we need for CRTM coefficients
+    pathToThisScript = os.path.dirname(os.path.abspath(__file__))
+    pathInfo = configparser.ConfigParser()
+    pathInfo.read( os.path.join(pathToThisScript,'lib','pycrtm','crtm.cfg') )
+    coefficientPathCrtm = pathInfo['CRTM']['coeffs_dir']
+    # Trying to make the interpolation here instead of inside CRTM, pull pressure levels out of coefficient
+    # get pressures used for profile training in CRTM.
+    crtmTauCoef, _ = readTauCoeffODPS( os.path.join(coefficientPathCrtm,'iasi_metop-b.TauCoeff.bin') )
+    coefLevCrtm = np.asarray(crtmTauCoef['level_pressure'])
+    layerPressuresCrtm = np.asarray(crtmTauCoef['layer_pressure'])
+   
+    ##########################
+    # Start Profile Setting
+    ##########################
+    
+    h5ProfileFilename =  '/Users/bkarpowi/github/compareRttovCrtm/rttovDir/rttov/rttov_test/profile-datasets-hdf/standard101lev_allgas_kgkg.H5'
+    myProfiles = setRttovProfiles( h5ProfileFilename )
 
     ##########################
     # End profile setting
@@ -160,7 +206,7 @@ if __name__ == "__main__":
     rttovObj.Profiles = myProfiles
 
     # have rttov calculate surface emission.
-    rttovObj.SurfEmisRefl = -1.0*np.ones((2,nprofiles,rttovObj.Nchannels), dtype=np.float64)
+    rttovObj.SurfEmisRefl = -1.0*np.ones((2,myProfiles.P.shape[0],rttovObj.Nchannels), dtype=np.float64)
     
     # run it 
     rttovObj.runDirect()
@@ -174,44 +220,10 @@ if __name__ == "__main__":
     ##############################
     # Begin CRTM Profile setting
     ##############################
-    nprofiles = 6
-    myProfiles = pyrttov.Profiles(nprofiles, 101)
-    profilesCRTM = profilesCreate( 6, 100 )
-    h5ProfileFilename =  '/Users/bkarpowi/github/compareRttovCrtm/rttovDir/rttov/rttov_test/profile-datasets-hdf/standard101lev_allgas_kgkg.H5'
-    myProfiles.P, myProfiles.T, myProfiles.Q, myProfiles.CO2, myProfiles.O3, myProfiles.GasUnits = readProfileH5(h5ProfileFilename)
-    h5ProfileFilename =  '/Users/bkarpowi/github/compareRttovCrtm/rttovDir/rttov/rttov_test/profile-datasets-hdf/standard101lev_allgas.H5'
-    _, _, _, CO2_1, O3_1, units_1 = readProfileH5(h5ProfileFilename)
-    # Trying to make the interpolation here instead of inside CRTM, pull pressure levels out of coefficient
-    # get pressures used for profile training in CRTM.
-    crtmTauCoef, _ = readTauCoeffODPS( os.path.join(coefficientPathCrtm,'iasi_metop-b.TauCoeff.bin') )
-    coefLevCrtm = np.asarray(crtmTauCoef['level_pressure'])
-    layerPressuresCrtm = np.asarray(crtmTauCoef['layer_pressure'])
-    print(layerPressuresCrtm.shape)
-    crtmTauCoef = [] # clear out some ram. by getting rid of the dictonary and set it to empty list
-    profilesCRTM.P[:,:], profilesCRTM.T[:,:], profilesCRTM.Q[:,:], profilesCRTM.CO2[:,:], profilesCRTM.O3[:,:] =  interpProfiles( layerPressuresCrtm, myProfiles.P, myProfiles.T, 1000.0*myProfiles.Q, CO2_1, O3_1)
-    profilesCRTM.Angles[:,:] = 0.0
-    profilesCRTM.Angles[:,2] = 100.0  # Solar Zenith Angle 100 degrees zenith below horizon.
 
-    profilesCRTM.DateTimes[:,0] = 2015
-    profilesCRTM.DateTimes[:,1] = 8
-    profilesCRTM.DateTimes[:,2] = 1
-
-    profilesCRTM.Pi[:,:] = coefLevCrtm
-
-    # Turn off Aerosols and Clouds
-    profilesCRTM.aerosolType[:] = -1
-    profilesCRTM.cloudType[:] = -1
-
-    profilesCRTM.surfaceFractions[:,:] = 0.0
-    profilesCRTM.surfaceFractions[:,1] = 1.0 # all water!
-    profilesCRTM.surfaceTemperatures[:,:] = 270 
-    profilesCRTM.S2m[:,1] = 35.0 # just use salinity out of S2m for the moment.
-    profilesCRTM.windSpeed10m[:] = 0.0
-    profilesCRTM.windDirection10m[:] = 0.0 
-    profilesCRTM.n_absorbers[:] = 2 
-
-    # land, soil, veg, water, snow, ice
-    profilesCRTM.surfaceTypes[:,3] = 1 
+    h5_mass =  '/Users/bkarpowi/github/compareRttovCrtm/rttovDir/rttov/rttov_test/profile-datasets-hdf/standard101lev_allgas_kgkg.H5'
+    h5_ppmv =  '/Users/bkarpowi/github/compareRttovCrtm/rttovDir/rttov/rttov_test/profile-datasets-hdf/standard101lev_allgas.H5'
+    profilesCRTM  = setProfilesCRTM(h5_mass, h5_ppmv)
 
     ##############################
     # End CRTM Profile setting
