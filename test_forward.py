@@ -121,6 +121,7 @@ def setRttovProfiles( h5ProfileFileName):
         datetimes.append( [2015 ,   8,    1,    0,    0,    0]) 
     myProfiles.DateTimes = np.asarray(datetimes)
     return myProfiles
+
 def setProfilesCRTM(h5_mass, h5_ppmv):
 
     nprofiles = 6
@@ -156,31 +157,31 @@ def setProfilesCRTM(h5_mass, h5_ppmv):
 
     return profilesCRTM
 if __name__ == "__main__":
-    
-    # get installed path to coefficients from pycrtm submodule install (crtm.cfg in pycrtm directory)
+    #################################################################################################
+    # Get installed path to coefficients from pycrtm submodule install (crtm.cfg in pycrtm directory)
     # load stuff we need for CRTM coefficients
+    #################################################################################################
     pathToThisScript = os.path.dirname(os.path.abspath(__file__))
     pathInfo = configparser.ConfigParser()
     pathInfo.read( os.path.join(pathToThisScript,'lib','pycrtm','crtm.cfg') )
     coefficientPathCrtm = pathInfo['CRTM']['coeffs_dir']
-    # Trying to make the interpolation here instead of inside CRTM, pull pressure levels out of coefficient
+    #################################################################################################
+    # Get CRTM coefficient interface levels, and pressure layers 
+    # Pull pressure levels out of coefficient
     # get pressures used for profile training in CRTM.
+    #################################################################################################
     crtmTauCoef, _ = readTauCoeffODPS( os.path.join(coefficientPathCrtm,'iasi_metop-b.TauCoeff.bin') )
     coefLevCrtm = np.asarray(crtmTauCoef['level_pressure'])
     layerPressuresCrtm = np.asarray(crtmTauCoef['layer_pressure'])
    
+    ##########################
+    # Set Profiles
+    ##########################
     h5_mass =  os.path.join(rttovPath,'rttov_test','profile-datasets-hdf','standard101lev_allgas_kgkg.H5')
     h5_ppmv =  os.path.join(rttovPath,'rttov_test','profile-datasets-hdf','standard101lev_allgas.H5')
 
-    ##########################
-    # Start Profile Setting
-    ##########################
-    
     myProfiles = setRttovProfiles( h5_mass )
-
-    ##########################
-    # End profile setting
-    ##########################
+    profilesCRTM  = setProfilesCRTM( h5_mass, h5_ppmv )
 
     #########################
     # Run RTTOV
@@ -219,15 +220,6 @@ if __name__ == "__main__":
 
     print("Now on to CRTM.")
     
-    ##############################
-    # Begin CRTM Profile setting
-    ##############################
-
-    profilesCRTM  = setProfilesCRTM(h5_mass, h5_ppmv)
-
-    ##############################
-    # End CRTM Profile setting
-    ##############################
 
     #########################
     # Run CRTM
@@ -256,7 +248,7 @@ if __name__ == "__main__":
     ##############################
     # Start Plots
     ##############################
-    profileNames = ['Tropical','Mid-Lat Summer', 'Mid-Lat Winter', 'Sub-Arctic Summer', 'Sub-Arctic Winter', 'US-Standard Atmosphere' ]
+    profileNames = ['1 Tropical','2 Mid-Lat Summer', '3 Mid-Lat Winter', '4 Sub-Arctic Summer', '5 Sub-Arctic Winter', '6 US-Standard Atmosphere' ]
     for i,n in enumerate(profileNames): 
         key = n.replace(" ","_")+'_'
         plt.figure()
