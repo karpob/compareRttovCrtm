@@ -1,3 +1,6 @@
 [submodule "pycrtm"]
 	path = lib/pycrtm
 	url = https://github.com/karpob/pycrtm.git
+[submodule "lib/graphics"]
+	path = lib/graphics
+	url = https://github.com/karpob/graphics
