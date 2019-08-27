@@ -16,6 +16,21 @@ from lib.pycrtm.pyCRTM import pyCRTM, profilesCreate
 from lib.pycrtm.crtm_io import readTauCoeffODPS
 from matplotlib import pyplot as plt
 
+def calculateWeightingFunctions(chan_list, rttovInstance, myProfiles):
+    
+    nlevels = np.asarray(rttovInstance.TauLevels).shape[2]
+    nprofiles = myProfiles.P.shape[0]
+    wf = np.zeros([nprofiles, nlevels-1, len(chan_list)])
+    for p in range(myProfiles.P.shape[0]): 
+        iList = 0
+        for c in range(0,8642):
+            if c+1 in chan_list:
+                num = rttovInstance.TauLevels[p, c, 1::] - rttovInstance.TauLevels[p, c, 0:nlevels-1]
+                den = np.log(myProfiles.P[p, 0:nlevels-1]) - np.log(myProfiles.P[p, 1:nlevels])
+                wf[p,:,iList] = num/den
+                iList+=1
+    return wf
+
 def interpolateProfile(x, xo, yo):
     """
     Do a log-linear interpolation.
@@ -254,10 +269,12 @@ if __name__ == "__main__":
         o3SenCrtm = crtmOb.O3K[i,idx,:]*profilesCRTM.O3[i,:]
         qSenCrtm = crtmOb.QK[i,idx,:]*profilesCRTM.Q[i,:] 
         tSenCrtm = crtmOb.TK[i,idx,:]*profilesCRTM.T[i,:]   
- 
+        co2SenCrtm =  crtmOb.CO2K[i,idx,:]*profilesCRTM.CO2[i,:]
+
         o3SenRttov = rttovObj.O3K[i,idx,:]*myProfiles.O3[i,:]
         qSenRttov = rttovObj.QK[i,idx,:]*myProfiles.Q[i,:]
         tSenRttov =  rttovObj.TK[i,idx,:]*myProfiles.T[i,:]
+        co2SenRttov =  rttovObj.CO2K[i,idx,:]*myProfiles.CO2[i,:]
 
         maxO3 = max(o3SenCrtm.max().max(),o3SenRttov.max().max())
         minO3 = min(o3SenCrtm.min().min(),o3SenRttov.min().min())
@@ -267,12 +284,28 @@ if __name__ == "__main__":
 
         maxT = max(tSenCrtm.max().max(),tSenRttov.max().max())
         minT = min(tSenCrtm.min().min(),tSenRttov.min().min())
-        plotContour(wv,profilesCRTM.P[0,:],o3SenCrtm,'Wavenumber [cm$^{-1}$]','Pressure [hPa]','Jacobian [K]', profileNames[i]+' CRTM O$_3$ Jacobian',key+'o3k_crtm.png', zlim = [minO3, maxO3])    
-        plotContour(wv,profilesCRTM.P[0,:],qSenCrtm,'Wavenumber [cm$^{-1}$]','Pressure [hPa]','Jacobian [K]',profileNames[i]+' CRTM H$_2$O Jacobian',key+'h2ok_crtm.png', zlim = [minQ, maxQ])    
-        plotContour(wv,profilesCRTM.P[0,:],tSenCrtm,'Wavenumber [cm$^{-1}$]','Pressure [hPa]','Jacobian [K]',profileNames[i]+' CRTM T Jacobian',key+'Tk_crtm.png', zlim = [minT, maxT])    
-        plotContour(wv, myProfiles.P[0,:],o3SenRttov,'Wavenumber [cm$^{-1}$]','Pressure [hPa]','Jacobian [K]',profileNames[i]+' RTTOV O$_3$ Jacobian',key+'o3k_rttov.png', zlim = [minO3, maxO3])    
-        plotContour(wv, myProfiles.P[0,:],qSenRttov,'Wavenumber [cm$^{-1}$]','Pressure [hPa]','Jacobian [K]',profileNames[i]+'  RTTOV H$_2$O Jacobian',key+'h2ok_rttov.png', zlim = [minQ, maxQ])    
-        plotContour(wv, myProfiles.P[0,:], tSenRttov,'Wavenumber [cm$^{-1}$]','Pressure [hPa]','Jacobian [K]',profileNames[i]+' RTTOV T Jacobian',key+'Tk_rttov.png', zlim = [minT, maxT])    
+
+        maxCo2 = max(co2SenCrtm.max().max(),co2SenRttov.max().max())
+        minCo2 = min(co2SenCrtm.min().min(),co2SenRttov.min().min())
+        #wfCRTM = calculateWeightingFunctions(idx, crtmOb, profilesCRTM)
+        #wfRTTOV = calculateWeightingFunctions(idx, rttovObj, myProfiles)
+   
+        wfCRTM =-1.0*np.diff(crtmOb.TauLevels[i,idx,:])/np.diff(np.log(profilesCRTM.P[i,:]))
+        wfRTTOV =-1.0* np.diff(rttovObj.TauLevels[i,idx,:])/np.diff(np.log(myProfiles.P[i,:]))
+        maxWf = max(wfCRTM.max().max(),wfRTTOV.max().max())
+        minWf = min(wfCRTM.min().min(),wfRTTOV.min().min())
+
+        plotContour(wv,profilesCRTM.P[i,:],o3SenCrtm,'Wavenumber [cm$^{-1}$]','Pressure [hPa]','Jacobian [K]', profileNames[i]+' CRTM O$_3$ Jacobian',key+'o3k_crtm.png', zlim = [minO3, maxO3])    
+        plotContour(wv,profilesCRTM.P[i,:],qSenCrtm,'Wavenumber [cm$^{-1}$]','Pressure [hPa]','Jacobian [K]',profileNames[i]+' CRTM H$_2$O Jacobian',key+'h2ok_crtm.png', zlim = [minQ, maxQ])    
+        plotContour(wv,profilesCRTM.P[i,:],tSenCrtm,'Wavenumber [cm$^{-1}$]','Pressure [hPa]','Jacobian [K]',profileNames[i]+' CRTM T Jacobian',key+'Tk_crtm.png', zlim = [minT, maxT])    
+        plotContour(wv,profilesCRTM.P[i,:],co2SenCrtm,'Wavenumber [cm$^{-1}$]','Pressure [hPa]','Jacobian [K]',profileNames[i]+' CRTM CO$_2$ Jacobian',key+'co2_crtm.png', zlim = [minCo2, maxCo2])    
+        plotContour(wv,profilesCRTM.P[i,:],wfCRTM[:,:],'Wavenumber [cm$^{-1}$]','Pressure [hPa]','Weighting Function',profileNames[i]+' CRTM Weighting Function',key+'WF_crtm.png', zlim = [minWf, maxWf])    
+        
+        plotContour(wv, myProfiles.P[i,:],o3SenRttov,'Wavenumber [cm$^{-1}$]','Pressure [hPa]','Jacobian [K]',profileNames[i]+' RTTOV O$_3$ Jacobian',key+'o3k_rttov.png', zlim = [minO3, maxO3])    
+        plotContour(wv, myProfiles.P[i,:],qSenRttov,'Wavenumber [cm$^{-1}$]','Pressure [hPa]','Jacobian [K]',profileNames[i]+'  RTTOV H$_2$O Jacobian',key+'h2ok_rttov.png', zlim = [minQ, maxQ])    
+        plotContour(wv, myProfiles.P[i,:], tSenRttov,'Wavenumber [cm$^{-1}$]','Pressure [hPa]','Jacobian [K]',profileNames[i]+' RTTOV T Jacobian',key+'Tk_rttov.png', zlim = [minT, maxT])    
+        plotContour(wv, myProfiles.P[i,:], co2SenRttov,'Wavenumber [cm$^{-1}$]','Pressure [hPa]','Jacobian [K]',profileNames[i]+' RTTOV CO$_2$ Jacobian',key+'co2_rttov.png', zlim = [minCo2, maxCo2])    
+        plotContour(wv, myProfiles.P[i,:], wfRTTOV[:,:],'Wavenumber [cm$^{-1}$]','Pressure [hPa]','Weighting Function',profileNames[i]+' RTTOV Weighting Function',key+'WF_rttov.png', zlim = [minWf, maxWf])    
 
         plt.figure()
         plt.plot(wv, crtmOb.Bt[i,idx],'b',label='CRTM')
