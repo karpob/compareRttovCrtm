@@ -16,21 +16,6 @@ from lib.pycrtm.pyCRTM import pyCRTM, profilesCreate
 from lib.pycrtm.crtm_io import readTauCoeffODPS
 from matplotlib import pyplot as plt
 
-def calculateWeightingFunctions(chan_list, rttovInstance, myProfiles):
-    
-    nlevels = np.asarray(rttovInstance.TauLevels).shape[2]
-    nprofiles = myProfiles.P.shape[0]
-    wf = np.zeros([nprofiles, nlevels-1, len(chan_list)])
-    for p in range(myProfiles.P.shape[0]): 
-        iList = 0
-        for c in range(0,8642):
-            if c+1 in chan_list:
-                num = rttovInstance.TauLevels[p, c, 1::] - rttovInstance.TauLevels[p, c, 0:nlevels-1]
-                den = np.log(myProfiles.P[p, 0:nlevels-1]) - np.log(myProfiles.P[p, 1:nlevels])
-                wf[p,:,iList] = num/den
-                iList+=1
-    return wf
-
 def interpolateProfile(x, xo, yo):
     """
     Do a log-linear interpolation.
@@ -287,11 +272,10 @@ if __name__ == "__main__":
 
         maxCo2 = max(co2SenCrtm.max().max(),co2SenRttov.max().max())
         minCo2 = min(co2SenCrtm.min().min(),co2SenRttov.min().min())
-        #wfCRTM = calculateWeightingFunctions(idx, crtmOb, profilesCRTM)
-        #wfRTTOV = calculateWeightingFunctions(idx, rttovObj, myProfiles)
    
         wfCRTM =-1.0*np.diff(crtmOb.TauLevels[i,idx,:])/np.diff(np.log(profilesCRTM.P[i,:]))
         wfRTTOV =-1.0* np.diff(rttovObj.TauLevels[i,idx,:])/np.diff(np.log(myProfiles.P[i,:]))
+
         maxWf = max(wfCRTM.max().max(),wfRTTOV.max().max())
         minWf = min(wfCRTM.min().min(),wfRTTOV.min().min())
 
