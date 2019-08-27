@@ -94,7 +94,7 @@ def setRttovProfiles( h5ProfileFileName):
     # nprofiles, nvar (6)
     s2m = []
     for i in list(range(nprofiles)):
-        s2m.append([myProfiles.P[i,-1], myProfiles.T[i,-1] ,myProfiles.Q[i,-1] , 0, 0., 0.])
+        s2m.append([myProfiles.P[i,-1], myProfiles.T[i,-1] ,myProfiles.Q[i,-1] , 0, 0.,10000.])
     myProfiles.S2m = np.asarray(s2m)
     
     #Skin variables
@@ -198,9 +198,11 @@ if __name__ == "__main__":
     rttovObj.Options.CO2Data = True
     rttovObj.Options.OzoneData = True
     rttovObj.Options.IrSeaEmisModel =2
+    rttovObj.Options.AddSolar = True
+    rttovObj.Options.DoNlteCorrection = True
     rttovObj.Options.FastemVersion = int(6)
     rttovObj.Options.Nthreads = 6
-    rttovObj.FileCoef = os.path.join(rttovPath, 'rtcoef_rttov12','rttov8pred101L','rtcoef_metop_2_iasi.H5')
+    rttovObj.FileCoef = os.path.join(rttovPath, 'rtcoef_rttov12','rttov9pred101L','rtcoef_metop_2_iasi.H5')
 
     #load the coefficient
     rttovObj.loadInst()
