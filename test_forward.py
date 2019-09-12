@@ -151,7 +151,7 @@ def setRttovProfiles( h5ProfileFileName ):
 
 def setProfilesCRTM(h5_mass, h5_ppmv, layerPressuresCrtm):
     nprofiles = 6
-    profilesCRTM = profilesCreate( 6, 100 )
+    profilesCRTM = profilesCreate( 6, 100, additionalGases=['CO2'] )
     Pi, Ti, xh2o, CO2i, O3i, units_1 = readProfileH5( h5_ppmv )
     CO2i = dryOutPpmv(CO2i,xh2o)
     O3i = dryOutPpmv(O3i,xh2o)
@@ -177,7 +177,6 @@ def setProfilesCRTM(h5_mass, h5_ppmv, layerPressuresCrtm):
     profilesCRTM.S2m[:,1] = 35.0 # just use salinity out of S2m for the moment.
     profilesCRTM.windSpeed10m[:] = 0.0
     profilesCRTM.windDirection10m[:] = 0.0 
-    profilesCRTM.n_absorbers[:] = 3
 
     # land, soil, veg, water, snow, ice
     profilesCRTM.surfaceTypes[:,3] = 1 
