@@ -285,7 +285,7 @@ if __name__ == "__main__":
                   'IASI Emissivity Profile'+n, key+'iasi_emissivity_crtm_rttov.png', legendItems = ('CRTM','RTTOV'), cmap='bwr')
         basicLine(wv, crtmOb.surfEmisRefl[0,i,idx]-rttovObj.SurfEmisRefl[0,i,idx],\
                   'Wavenumber [cm$^{-1}$]', 'CRTM - RTTOV Emissivity',\
-                  'CRTM - RTTOV Emissivity', key+'iasi_crtm_rttov_diff.png')
+                  'CRTM - RTTOV Emissivity', key+'iasi_emissivity_crtm_rttov_diff.png')
         
     err = crtmOb.Bt[:,idx]-rttovObj.Bt[:,idx]
     sqerr = err**2
