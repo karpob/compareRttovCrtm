@@ -4,6 +4,7 @@ matplotlib.use('Agg')
 import configparser, os, sys, h5py
 import numpy as np
 from lib.graphics.profile import plotContour, plotLines
+from lib.graphics.linePlots import basicLine
 pathInfo = configparser.ConfigParser()
 # Stuff to get the installed rttov path, and import pyrttov interface
 pathInfo.read('rttov.cfg')
@@ -273,50 +274,24 @@ if __name__ == "__main__":
         plotContour(wv,profilesCRTM.P[i,:],wfCRTM[:,:],'Wavenumber [cm$^{-1}$]','Pressure [hPa]','Weighting Function',profileNames[i]+' CRTM Weighting Function',key+'WF_crtm.png', zlim = [minWf, maxWf])    
         plotContour(wv, myProfiles.P[i,:], wfRTTOV[:,:],'Wavenumber [cm$^{-1}$]','Pressure [hPa]','Weighting Function',profileNames[i]+' RTTOV Weighting Function',key+'WF_rttov.png', zlim = [minWf, maxWf])    
 
-        plt.figure()
-        plt.plot(wv, crtmOb.Bt[i,idx],'b',label='CRTM')
-        plt.plot(wv, rttovObj.Bt[i,idx],'r',label='RTTOV')
-        plt.xlabel('Wavenumber [cm$^{-1}$]')
-        plt.ylabel('Brightness Temperature [K]')
-        plt.title('IASI Brightness Temperature Profile '+n)
-        plt.legend()
-        plt.savefig(key+'iasi_crtm_rttov.png')
-        plt.close()
-
-        plt.figure()
-        plt.plot(wv, crtmOb.Bt[i,idx]-rttovObj.Bt[i,idx],'k')
-        plt.title('IASI Brightness Temperature Difference Profile '+n)
-        plt.xlabel('Wavenumber [cm$^{-1}$]')
-        plt.ylabel('CRTM - RTTOV Brightness Temperature [K]')
-        plt.savefig(key+'iasi_crtm_rttov_diff.png')
-        plt.close()
-
-        plt.figure()
-        plt.plot(wv, crtmOb.surfEmisRefl[0,i,idx],'b', label='CRTM')
-        plt.plot(wv, rttovObj.SurfEmisRefl[0,i,idx],'r', label='RTTOV')
-        plt.legend()
-        plt.title('IASI Emissivity Profile '+n)
-        plt.xlabel('Wavenumber [cm$^{-1}$]')
-        plt.ylabel('Emissivity')
-        plt.savefig(key+'iasi_emissivity_crtm_rttov.png')
-        plt.close()
-
-        plt.figure()
-        plt.plot(wv, crtmOb.surfEmisRefl[0,i,idx]- rttovObj.SurfEmisRefl[0,i,idx],'k')
-        plt.title('IASI Emissivity Difference Profile '+n)
-        plt.xlabel('Wavenumber [cm$^{-1}$]')
-        plt.ylabel('CRTM - RTTOV Emissivity')
-        plt.savefig(key+'iasi_emissivity_crtm_rttov_diff.png')
-        plt.close()
-    plt.figure()
+        basicLine(wv, np.asarray([crtmOb.Bt[i,idx],rttovObj.Bt[i,idx]]).T,\
+                  'Wavenumber [cm$^{-1}$]', 'Brightness Temperature [K]',\
+                  'IASI Brightness Temperature Profile'+n, key+'iasi_crtm_rttov.png', legendItems = ('CRTM','RTTOV'), cmap='bwr')
+        basicLine(wv, crtmOb.Bt[i,idx]-rttovObj.Bt[i,idx],\
+                  'Wavenumber [cm$^{-1}$]', 'CRTM - RTTOV Brightness Temperature [K]',\
+                  'CRTM - RTTOV Brightness Temperature', key+'iasi_crtm_rttov_diff.png')
+        basicLine(wv, np.asarray([crtmOb.surfEmisRefl[0,i,idx],rttovObj.SurfEmisRefl[0,i,idx]]).T,\
+                  'Wavenumber [cm$^{-1}$]', 'Brightness Temperature [K]',\
+                  'IASI Emissivity Profile'+n, key+'iasi_emissivity_crtm_rttov.png', legendItems = ('CRTM','RTTOV'), cmap='bwr')
+        basicLine(wv, crtmOb.surfEmisRefl[0,i,idx]-rttovObj.SurfEmisRefl[0,i,idx],\
+                  'Wavenumber [cm$^{-1}$]', 'CRTM - RTTOV Emissivity',\
+                  'CRTM - RTTOV Emissivity', key+'iasi_crtm_rttov_diff.png')
+        
     err = crtmOb.Bt[:,idx]-rttovObj.Bt[:,idx]
     sqerr = err**2
     mse = sqerr.mean(axis=0)
     rmse = np.sqrt(mse)
-    plt.plot(wv, rmse,'k')
-    plt.xlabel('Wavenumber [cm$^{-1}$]')
-    plt.ylabel('Brightness Temperature Difference RMS [K]')
-    plt.title('IASI Brightness Temperature Difference RMSD')
-    plt.savefig('iasi_crtm_rttov_rms.png')
-    plt.close()
+    basicLine(wv, rmse,\
+              'Wavenumber [cm$^{-1}$]','Brightness Temperature Difference RMS [K]',\
+              'IASI Brightness Temperature Difference RMSD','iasi_crtm_rttov_rms.png')  
 
