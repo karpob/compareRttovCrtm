@@ -248,7 +248,7 @@ if __name__ == "__main__":
             exec('sValCrtm = crtmOb.{}K[i,:,:]*profilesCRTM.{}[i,:]'.format(s,s)) 
             exec('sValRttov = rttovObj.{}K[i,:,:]*myProfiles.{}[i,:]'.format(s,s)) 
             maxS = max(sValCrtm.max().max(),sValRttov.max().max())
-            minS = max(sValCrtm.min().min(),sValRttov.min().min())
+            minS = min(sValCrtm.min().min(),sValRttov.min().min())
             symMaxS = max(abs(minS),abs(maxS))
             symMinS = -1.0*symMaxS
             plotContour(wv, profilesCRTM.P[i,:], sValCrtm,\
