@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+import sys
+sys.dont_write_bytecode = True
 import matplotlib
 matplotlib.use('Agg')
 import configparser, os, sys, h5py
@@ -100,7 +102,8 @@ def setRttovProfiles( h5ProfileFileName, additionalItems=[] ):
 
 def setProfilesCRTM(h5_mass, h5_ppmv, layerPressuresCrtm, additionalItems = [], method='average'):
     nprofiles = 6
-    profilesCRTM = profilesCreate( 6, 100, additionalGases = additionalItems )
+    profilesCRTM = profilesCreate( 6, 100, nAerosols=0, nClouds=0, additionalGases = additionalItems )
+    #profilesCRTM = profilesCreate( 6, 100, additionalGases = additionalItems )
    
     Pi, profileItems, gas_units = readProfileItemsH5(h5_ppmv, additionalItems = additionalItems)
     interpOb = profileInterpolate(layerPressuresCrtm, Pi, profileItems)
@@ -115,17 +118,16 @@ def setProfilesCRTM(h5_mass, h5_ppmv, layerPressuresCrtm, additionalItems = [], 
         
     profilesCRTM.Q[:,:] = waterPpmvDry2GmKgDry(profilesCRTM.Q[:,:]) 
     profilesCRTM.Pi[:,:] = Pi
-
+    
+    # Turn off Aerosols and Clouds
+    #profilesCRTM.aerosolType[:] = -1
+    #profilesCRTM.cloudType[:] = -1 
     profilesCRTM.Angles[:,:] = 0.0
     profilesCRTM.Angles[:,2] = 100.0  # Solar Zenith Angle 100 degrees zenith below horizon.
 
     profilesCRTM.DateTimes[:,0] = 2015
     profilesCRTM.DateTimes[:,1] = 8
     profilesCRTM.DateTimes[:,2] = 1
-
-    # Turn off Aerosols and Clouds
-    profilesCRTM.aerosolType[:] = -1
-    profilesCRTM.cloudType[:] = -1
 
     profilesCRTM.surfaceFractions[:,:] = 0.0
     profilesCRTM.surfaceFractions[:,1] = 1.0 # all water!
@@ -167,7 +169,7 @@ if __name__ == "__main__":
 
     print("Now on to CRTM.")
     # get the 616 channel subset for IASI
-    h5 = h5py.File('iasi_wavenumbers.h5')
+    h5 = h5py.File(os.path.join(pathToThisScript,'etc','iasi_wavenumbers.h5') )
     chans =np.asarray( h5['idxBufrSubset'])
     idx = np.arange(0,len(chans)) 
    
@@ -179,8 +181,9 @@ if __name__ == "__main__":
     crtmOb.profiles = profilesCRTM
     crtmOb.coefficientPath = coefficientPathCrtm 
     crtmOb.sensor_id = 'iasi616_metop-a' 
-    crtmOb.nThreads = 6
-
+    crtmOb.nThreads = 1
+    crtmOb.StoreTrans = True
+    crtmOb.StoreEmis = True
     crtmOb.loadInst()
     crtmOb.runDirect()
 
@@ -226,10 +229,10 @@ if __name__ == "__main__":
     rttovObj.Profiles = myProfiles
 
     # have rttov calculate surface emission.
-    #rttovObj.SurfEmisRefl = -1.0*np.ones((2,myProfiles.P.shape[0],rttovObj.Nchannels), dtype=np.float64)
+    rttovObj.SurfEmisRefl = -1.0*np.ones((2,myProfiles.P.shape[0],rttovObj.Nchannels), dtype=np.float64)
     
     # When we can't duplicate, CHEAT! Use CRTM's emissivity!
-    rttovObj.SurfEmisRefl = crtmOb.surfEmisRefl[:,:]
+    #rttovObj.SurfEmisRefl = crtmOb.surfEmisRefl[:,:]
     # run it 
     rttovObj.runDirect()
     
@@ -243,7 +246,8 @@ if __name__ == "__main__":
     profileNames = ['1 Tropical','2 Mid-Lat Summer', '3 Mid-Lat Winter', '4 Sub-Arctic Summer', '5 Sub-Arctic Winter', '6 US-Standard Atmosphere' ]
     for i,n in enumerate(profileNames): 
         key = n.replace(" ","_")+'_'
-
+        print(crtmOb.TauLevels[i,idx,:])
+        print(rttovObj.TauLevels[i,idx,:])
         wfCRTM =-1.0*np.diff(crtmOb.TauLevels[i,idx,:])/np.diff(np.log(profilesCRTM.P[i,:]))
         wfRTTOV =-1.0* np.diff(rttovObj.TauLevels[i,idx,:])/np.diff(np.log(myProfiles.P[i,:]))
 
@@ -268,7 +272,6 @@ if __name__ == "__main__":
         basicLine(wv, crtmOb.surfEmisRefl[0,i,idx]-rttovObj.SurfEmisRefl[0,i,idx],\
                   'Wavenumber [cm$^{-1}$]', 'CRTM - RTTOV Emissivity',\
                   'CRTM - RTTOV Emissivity', key+'iasi_emissivity_crtm_rttov_diff.png')
-        
     err = crtmOb.Bt[:,idx]-rttovObj.Bt[:,idx]
     sqerr = err**2
     mse = sqerr.mean(axis=0)

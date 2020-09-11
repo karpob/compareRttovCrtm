@@ -3,7 +3,7 @@ import matplotlib
 matplotlib.use('Agg')
 import configparser, os, sys, h5py
 import numpy as np
-from lib.graphics.profile import plotContour, plotLines
+from lib.graphics.profile import plotContour, plotLines,plotContourLabelIdx
 from lib.graphics.linePlots import basicLine
 pathInfo = configparser.ConfigParser()
 # Stuff to get the installed rttov path, and import pyrttov interface
@@ -100,8 +100,7 @@ def setRttovProfiles( h5ProfileFileName, additionalItems=[] ):
 
 def setProfilesCRTM(h5_mass, h5_ppmv, layerPressuresCrtm, additionalItems = [], method='average'):
     nprofiles = 6
-    profilesCRTM = profilesCreate( 6, 100, nAerosols=0, nClouds=0,  additionalGases = additionalItems )
-    #profilesCRTM = profilesCreate( 6, 100, additionalGases = additionalItems )
+    profilesCRTM = profilesCreate( 6, 100, nAerosols=0, nClouds=0, additionalGases = additionalItems )
    
     Pi, profileItems, gas_units = readProfileItemsH5(h5_ppmv, additionalItems = additionalItems)
     interpOb = profileInterpolate(layerPressuresCrtm, Pi, profileItems)
@@ -123,9 +122,11 @@ def setProfilesCRTM(h5_mass, h5_ppmv, layerPressuresCrtm, additionalItems = [], 
     profilesCRTM.DateTimes[:,0] = 2015
     profilesCRTM.DateTimes[:,1] = 8
     profilesCRTM.DateTimes[:,2] = 1
+
     # Turn off Aerosols and Clouds
     #profilesCRTM.aerosolType[:] = -1
-    #profilesCRTM.cloudType[:] = -1 
+    #profilesCRTM.cloudType[:] = -1
+
     profilesCRTM.surfaceFractions[:,:] = 0.0
     profilesCRTM.surfaceFractions[:,1] = 1.0 # all water!
     profilesCRTM.surfaceTemperatures[:,:] = 270.0 
@@ -151,7 +152,7 @@ if __name__ == "__main__":
     # Pull pressure levels out of coefficient
     # get pressures used for profile training in CRTM.
     #################################################################################################
-    crtmTauCoef, _ = readTauCoeffODPS( os.path.join(coefficientPathCrtm,'iasi616_metop-b.TauCoeff.bin') )
+    crtmTauCoef, _ = readTauCoeffODPS( os.path.join(coefficientPathCrtm,'cris-fsr_n20.TauCoeff.bin') )
     coefLevCrtm = np.asarray(crtmTauCoef['level_pressure'])
     layerPressuresCrtm = np.asarray(crtmTauCoef['layer_pressure'])
 
@@ -165,75 +166,24 @@ if __name__ == "__main__":
     myProfiles = setRttovProfiles( h5_mass, additionalItems=['CO2','CO'])
 
     print("Now on to CRTM.")
-    # get the 616 channel subset for IASI
-    h5 = h5py.File(os.path.join(pathToThisScript,'etc','iasi_wavenumbers.h5'))
-    chans =np.asarray( h5['idxBufrSubset'])
-    idx = np.arange(0,len(chans)) 
-   
 
     #########################
     # Run CRTM
     #########################
     crtmOb = pyCRTM()
-    crtmOb.StoreTrans = True
     crtmOb.profiles = profilesCRTM
     crtmOb.coefficientPath = coefficientPathCrtm 
-    crtmOb.sensor_id = 'iasi616_metop-a' 
+    crtmOb.sensor_id = 'cris-fsr_n20' 
     crtmOb.nThreads = 6
+
     crtmOb.loadInst()
     crtmOb.runK()
+
     #########################
     # End Run CRTM
     #########################
 
  
-    #########################
-    # Run RTTOV
-    #########################
-
-    # Create Rttov object
-    rttovObj = pyrttov.Rttov()
-    # set options.
-    rttovObj.Options.AddInterp = False
-    rttovObj.Options.InterpMode = 3
-    rttovObj.Options.FixHgpl = True 
-    rttovObj.Options.RegLimitExtrap = False
-    rttovObj.Options.Spacetop = False 
-    rttovObj.Options.Lgradp = False
-    rttovObj.Options.StoreTrans = True
-    rttovObj.Options.StoreRad = True
-    rttovObj.Options.StoreRad2 = True
-    rttovObj.Options.StoreEmisTerms = True
-    rttovObj.Options.VerboseWrapper = True
-    rttovObj.Options.CO2Data = True
-    rttovObj.Options.OzoneData = True
-    rttovObj.Options.COData = True
-    rttovObj.Options.IrSeaEmisModel = 2
-    rttovObj.Options.UseQ2m = False
-    rttovObj.Options.DoNlteCorrection = True
-    rttovObj.Options.AddSolar = True
-    rttovObj.Options.FastemVersion = 6
-    rttovObj.Options.Nthreads = 6
-    rttovObj.Options.Switchrad = True
-    rttovObj.FileCoef = os.path.join(rttovPath, 'rtcoef_rttov12','rttov9pred101L','rtcoef_metop_2_iasi.H5')
-    #load the coefficient
-    rttovObj.loadInst(channels=chans)
-
-    rttovObj.printOptions()
-    #load the profiles
-    rttovObj.Profiles = myProfiles
-
-    # have rttov calculate surface emission.
-    #rttovObj.SurfEmisRefl = -1.0*np.ones((2,myProfiles.P.shape[0],rttovObj.Nchannels), dtype=np.float64)
-    
-    # When we can't duplicate, CHEAT! Use CRTM's emissivity!
-    rttovObj.SurfEmisRefl = crtmOb.surfEmisRefl[:,:]
-    # run it 
-    rttovObj.runK()
-    
-    ########################
-    # End Run RTTOV
-    ########################
 
     # RT is done! Great! Let's make some plots!
 
@@ -243,8 +193,6 @@ if __name__ == "__main__":
     profileItems = {}
     for s in sensitivities:
         exec('profileItems[s] = myProfiles.{}'.format(s))
-        exec("profileItems[s+'K'] = rttovObj.{}K".format(s))
-    profileItems['TauLevels'] = rttovObj.TauLevels
 
     plevs = np.zeros([6,coefLevCrtm.shape[0]])
     plevs[:,:] = coefLevCrtm
@@ -252,75 +200,87 @@ if __name__ == "__main__":
     interpOb.interpProfiles(method='crtm-wrap') 
     _, interpRttovProfileItems = interpOb.get() 
 
-
-
+    idxLw = np.array([65,69,73,67,75,44,83,85,89,91,95,99,103,107,109,127,131,125,121,123,153])-1
+    idxSw = np.array([1939,1940,1941,1942,1943,1944,1945,1946,1947,1948,1949,1950,1951,1952,1953,1954,1955,1956,1957,1958,1959])-1
+    idxSwLw = np.array([65,69,73,67,75,44,83,85,89,91,95,99,103,107,109,127,131,125,121,123,153,1939,1940,1941,1942,1943,1944,1945,1946,1947,1948,1949,1950,1951,1952,1953,1954,1955,1956,1957,1958,1959])-1
     for i,n in enumerate(profileNames): 
         key = n.replace(" ","_")+'_'
+        s = 'Weighting Function'
+        sValCrtm =-1.0*np.diff(crtmOb.TauLevels[i,:,:])/np.diff(np.log(profilesCRTM.P[i,:]))
+
+        plotContour(wv, profilesCRTM.P[i,:], sValCrtm,\
+                    'Wavenumber [cm$^{-1}$]','Pressure [hPa]','Weighting Function',\
+                    profileNames[i]+' CRTM {}'.format(s.replace('O3','O$_3$').replace('Q','H$_2$O').replace('T','Temperature').replace('CO2','CO$_2$').replace('N2O','N$_2$O')),\
+                    key+'{}_crtm.png'.format( s.lower() ),\
+                    zlim = [-1.0, 1.0], figureResolution=300 ) 
+        wvTrunc = []
+        for w in wv[idxSw]:
+            wvTrunc.append('{0:.3f}'.format(w))
+        plotContourLabelIdx(wvTrunc, profilesCRTM.P[i,:], sValCrtm[idxSw],\
+                    'Wavenumber [cm$^{-1}$]','Pressure [hPa]','Weighting Function',\
+                    profileNames[i]+' CRTM {}'.format(s.replace('O3','O$_3$').replace('Q','H$_2$O').replace('T','Temperature').replace('CO2','CO$_2$').replace('N2O','N$_2$O')),\
+                    key+'{}_crtm_sw.png'.format( s.lower() ),\
+                    zlim = [-1.0,1.0],\
+                    figureResolution=300 ) 
+        wvTrunc = []
+        for w in wv[idxLw]:
+            wvTrunc.append('{0:.3f}'.format(w))
+        plotContourLabelIdx(wvTrunc, profilesCRTM.P[i,:], sValCrtm[idxLw],\
+                    'Wavenumber [cm$^{-1}$]','Pressure [hPa]','Weighting Function',\
+                    profileNames[i]+' CRTM {}'.format(s.replace('O3','O$_3$').replace('Q','H$_2$O').replace('T','Temperature').replace('CO2','CO$_2$').replace('N2O','N$_2$O')),\
+                    key+'{}_crtm_lw.png'.format( s.lower() ),\
+                    zlim = [-1.0,1.0],\
+                    figureResolution=300 ) 
+        for ii in range(idxLw.shape[0]):
+            idxPair = np.array([idxLw[ii],idxSw[ii]]) 
+            nP = profilesCRTM.P[i,:].shape[0]
+            plotLines ( sValCrtm[idxPair], profilesCRTM.P[i,0:nP-1], "Weighting Function", \
+                   "Pressure [hPa]",(idxPair+1).tolist(),\
+                   'Weighting Functions LW/SW pair', key+'{}_crtm_sub_{}_{}_lines.png'.format( s.lower(),idxLw[ii]+1,idxSw[ii]+1 ),\
+                    ylim =[100,1000],figureResolution = 300 )
+
+
         for s in sensitivities:
-            exec('sValCrtm = crtmOb.{}K[i,:,:]*profilesCRTM.{}[i,:]'.format(s,s)) 
-            #exec('sValRttov = rttovObj.{}K[i,:,:]*myProfiles.{}[i,:]'.format(s,s)) 
-            sValRttov = interpRttovProfileItems[s+'K'][i,:,:]*interpRttovProfileItems[s][i,:]
-            maxS = max(sValCrtm.max().max(),sValRttov.max().max())
-            minS = min(sValCrtm.min().min(),sValRttov.min().min())
+            #exec('sValCrtm = crtmOb.{}K[i,:,:]*profilesCRTM.{}[i,:]'.format(s,s)) 
+            exec('sValCrtm = crtmOb.{}K[i,:,:]'.format(s,s)) 
+            maxS = sValCrtm.max().max()
+            minS = sValCrtm.min().min()
             symMaxS = max(abs(minS),abs(maxS))
             symMinS = -1.0*symMaxS
+
+
+            maxS2 = sValCrtm[idxSwLw].max().max()
+            minS2 = sValCrtm[idxSwLw].min().min()
+            symMaxS2 = max(abs(minS2),abs(maxS2))
+            symMinS2 = -1.0*symMaxS2
+           
             plotContour(wv, profilesCRTM.P[i,:], sValCrtm,\
-                        'Wavenumber [cm$^{-1}$]','Pressure [hPa]','Jacobian [K]',\
+                        'Wavenumber [cm$^{-1}$]','Pressure [hPa]','Jacobian [dTb/dx]',\
                         profileNames[i]+' CRTM {} Jacobian'.format(s.replace('O3','O$_3$').replace('Q','H$_2$O').replace('T','Temperature').replace('CO2','CO$_2$').replace('N2O','N$_2$O')),\
                         key+'{}k_crtm.png'.format( s.lower() ),\
-                        zlim = [symMinS, symMaxS] )    
-            plotContour(wv, profilesCRTM.P[i,:], sValRttov,\
-                        'Wavenumber [cm$^{-1}$]','Pressure [hPa]','Jacobian [K]',\
-                        profileNames[i]+' RTTOV {} Jacobian'.format(s.replace('O3','O$_3$').replace('Q','H$_2$O').replace('T','Temperature').replace('CO2','CO$_2$').replace('N2O','N$_2$O')),\
-                        key+'{}k_rttov.png'.format( s.lower() ),\
-                        zlim = [symMinS, symMaxS] )
-
-            diff = sValRttov-sValCrtm
-            dmax = diff.max().max()
-            dmin = diff.min().min()
-            absMax = max(dmax,abs(dmin))
-            absMin = -1.0*absMax
-                
-            plotContour(wv, profilesCRTM.P[i,:], sValRttov-sValCrtm,\
-                        'Wavenumber [cm$^{-1}$]','Pressure [hPa]','Jacobian [K]',\
-                        profileNames[i]+' RTTOV-CRTM {} Jacobian'.format(s.replace('O3','O$_3$').replace('Q','H$_2$O').replace('T','Temperature').replace('CO2','CO$_2$').replace('N2O','N$_2$O')),\
-                        key+'{}k_rttov_crtm_diff.png'.format( s.lower() ), zlim = [absMin,absMax])
-
-       
-        wfCRTM =-1.0*np.diff(crtmOb.TauLevels[i,idx,:])/np.diff(np.log(profilesCRTM.P[i,:]))
-        rttovTauLev = interpRttovProfileItems['TauLevels'][i,idx,:]
-        wfRTTOV =-1.0* np.diff(rttovTauLev)/np.diff(np.log(profilesCRTM.P[i,:]))
-
-        print(crtmOb.TauLevels[i,idx,:])
-        print(rttovTauLev)
-
-        maxWf = max(wfCRTM.max().max(),wfRTTOV.max().max())
-        minWf = min(wfCRTM.min().min(),wfRTTOV.min().min())
-        mmWf= max(abs(minWf),maxWf)
-        maxWf = mmWf
-        minWf = -1.0*mmWf
-
-        plotContour(wv,profilesCRTM.P[i,:],wfCRTM[:,:],'Wavenumber [cm$^{-1}$]','Pressure [hPa]','Weighting Function',profileNames[i]+' CRTM Weighting Function',key+'WF_crtm.png', zlim = [minWf, maxWf])    
-        plotContour(wv, profilesCRTM.P[i,:], wfRTTOV[:,:],'Wavenumber [cm$^{-1}$]','Pressure [hPa]','Weighting Function',profileNames[i]+' RTTOV Weighting Function',key+'WF_rttov.png', zlim = [minWf, maxWf])    
-
-        basicLine(wv, np.asarray([crtmOb.Bt[i,idx],rttovObj.Bt[i,idx]]).T,\
-                  'Wavenumber [cm$^{-1}$]', 'Brightness Temperature [K]',\
-                  'IASI Brightness Temperature Profile'+n, key+'iasi_crtm_rttov.png', legendItems = ('CRTM','RTTOV'), cmap='bwr')
-        basicLine(wv, crtmOb.Bt[i,idx]-rttovObj.Bt[i,idx],\
-                  'Wavenumber [cm$^{-1}$]', 'CRTM - RTTOV Brightness Temperature [K]',\
-                  'CRTM - RTTOV Brightness Temperature', key+'iasi_crtm_rttov_diff.png')
-        basicLine(wv, np.asarray([crtmOb.surfEmisRefl[0,i,idx],rttovObj.SurfEmisRefl[0,i,idx]]).T,\
-                  'Wavenumber [cm$^{-1}$]', 'Brightness Temperature [K]',\
-                  'IASI Emissivity Profile'+n, key+'iasi_emissivity_crtm_rttov.png', legendItems = ('CRTM','RTTOV'), cmap='bwr')
-        basicLine(wv, crtmOb.surfEmisRefl[0,i,idx]-rttovObj.SurfEmisRefl[0,i,idx],\
-                  'Wavenumber [cm$^{-1}$]', 'CRTM - RTTOV Emissivity',\
-                  'CRTM - RTTOV Emissivity', key+'iasi_emissivity_crtm_rttov_diff.png')
-        
-    err = crtmOb.Bt[:,idx]-rttovObj.Bt[:,idx]
-    sqerr = err**2
-    mse = sqerr.mean(axis=0)
-    rmse = np.sqrt(mse)
-    basicLine(wv, rmse,\
-              'Wavenumber [cm$^{-1}$]','Brightness Temperature Difference RMS [K]',\
-              'IASI Brightness Temperature Difference RMSD','iasi_crtm_rttov_rms.png')  
-
+                        zlim = [symMinS, symMaxS], figureResolution=300 ) 
+            wvTrunc = []
+            for w in wv[idxSw]:
+                wvTrunc.append('{0:.3f}'.format(w))
+            plotContourLabelIdx(wvTrunc, profilesCRTM.P[i,:], sValCrtm[idxSw],\
+                        'Wavenumber [cm$^{-1}$]','Pressure [hPa]','Jacobian [dTb/dx]',\
+                        profileNames[i]+' CRTM {} Jacobian'.format(s.replace('O3','O$_3$').replace('Q','H$_2$O').replace('T','Temperature').replace('CO2','CO$_2$').replace('N2O','N$_2$O')),\
+                        key+'{}k_crtm_sw.png'.format( s.lower() ),\
+                        zlim = [symMinS2,symMaxS2],\
+                        figureResolution=300 ) 
+            wvTrunc = []
+            for w in wv[idxLw]:
+                wvTrunc.append('{0:.3f}'.format(w))
+            plotContourLabelIdx(wvTrunc, profilesCRTM.P[i,:], sValCrtm[idxLw],\
+                        'Wavenumber [cm$^{-1}$]','Pressure [hPa]','Jacobian [dTb/dx]',\
+                        profileNames[i]+' CRTM {} Jacobian'.format(s.replace('O3','O$_3$').replace('Q','H$_2$O').replace('T','Temperature').replace('CO2','CO$_2$').replace('N2O','N$_2$O')),\
+                        key+'{}k_crtm_lw.png'.format( s.lower() ),\
+                        zlim = [symMinS2,symMaxS2],\
+                        figureResolution=300 ) 
+            for ii in range(idxLw.shape[0]):
+                idxPair = np.array([idxLw[ii],idxSw[ii]]) 
+                plotLines ( sValCrtm[idxPair], profilesCRTM.P[i,:], "Jacobian [dTb/dx]", \
+                       "Pressure [hPa]",(idxPair+1).tolist(),\
+                       'Jacobians', key+'{}k_crtm_sub_{}_{}_lines.png'.format( s.lower(),idxLw[ii]+1,idxSw[ii]+1 ),\
+                        ylim =[100,1000],figureResolution = 300 )
+ 
